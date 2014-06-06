@@ -181,8 +181,8 @@ func getForecast(loc *location) (*forecast.Forecast, error) {
 	}
 	// TODO(alex): allow for multiple time windows and units.
 	return forecast.Get(key,
-		fmt.Sprintf("%2.f", loc.Lat),
-		fmt.Sprintf("%2.f", loc.Lng),
+		fmt.Sprintf("%.2f", loc.Lat),
+		fmt.Sprintf("%.2f", loc.Lng),
 		"now",
 		forecast.US,
 	)
@@ -196,10 +196,10 @@ func renderForecast(fc *forecast.Forecast, addr string) {
 
 	fmt.Println("---Currently---")
 	fmt.Printf("Summary: %s\n\n", fc.Currently.Summary)
-	fmt.Printf("Temperature: %2.f F\n", fc.Currently.Temperature)
-	fmt.Printf("Pressure: %2.f kPa\n", fc.Currently.Pressure)
-	fmt.Printf("Wind Speed: %2.f mph\n", fc.Currently.WindSpeed)
-	fmt.Printf("Precipitation Chance: %2.f%%\n", fc.Currently.PrecipProbability)
+	fmt.Printf("Temperature: %.2f F\n", fc.Currently.Temperature)
+	fmt.Printf("Pressure: %.2f kPa\n", fc.Currently.Pressure)
+	fmt.Printf("Wind Speed: %.2f mph\n", fc.Currently.WindSpeed)
+	fmt.Printf("Precipitation Chance: %.2f%%\n", fc.Currently.PrecipProbability)
 }
 
 // getForecastIoKey looks up the Forecast IO API key from the environment.
