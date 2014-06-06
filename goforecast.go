@@ -185,7 +185,6 @@ func getForecast(loc *location) (*forecast.Forecast, error) {
 	if err != nil {
 		return nil, err
 	}
-	println("got key", key)
 
 	// Record state.
 	if err := dumpState(&forecastIoState{
