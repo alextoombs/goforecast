@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/codegangsta/cli"
 
@@ -23,7 +24,14 @@ const (
 	// forecastIoEnvKey is the environment variable key that should be set with
 	// the forecastIo API key.
 	forecastIoEnvKey = "FORECAST_IO_API_KEY"
+
+	// goforecastState is the name of the file that contains the forecast io
+	// key.
+	goforecastState = ".goforecast"
 )
+
+// stateFilePath is where the goforecastState is located.
+var stateFilePath = os.Getenv("HOME")
 
 func main() {
 	app := setupCliApp()
@@ -73,9 +81,7 @@ func populateCommands(app *cli.App) {
 					printError(err)
 				}
 
-				// TODO(alex): ideally, we'd create a client here and pass it
-				// to getForecast, but that isn't exposed to us.
-				geoResp, err := getGeocodingLocation(http.Client{}, u)
+				geoResp, err := getGeocodingLocation(http.DefaultClient, u)
 				if err != nil {
 					printError(err)
 				}
@@ -115,7 +121,7 @@ func parseGeocodingAddr(addr string) url.Values {
 
 // getGeocodingLocation attempts to get a valid geocoding response back for the
 // entered address.
-func getGeocodingLocation(client http.Client, u *url.URL) (*geocodingResponse, error) {
+func getGeocodingLocation(client *http.Client, u *url.URL) (*geocodingResponse, error) {
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, err
@@ -179,6 +185,15 @@ func getForecast(loc *location) (*forecast.Forecast, error) {
 	if err != nil {
 		return nil, err
 	}
+	println("got key", key)
+
+	// Record state.
+	if err := dumpState(&forecastIoState{
+		ApiKey: key,
+	}); err != nil {
+		return nil, err
+	}
+
 	// TODO(alex): allow for multiple time windows and units.
 	return forecast.Get(key,
 		fmt.Sprintf("%.2f", loc.Lat),
@@ -202,13 +217,62 @@ func renderForecast(fc *forecast.Forecast, addr string) {
 	fmt.Printf("Precipitation Chance: %.2f%%\n", fc.Currently.PrecipProbability)
 }
 
-// getForecastIoKey looks up the Forecast IO API key from the environment.
-// TODO(alex): this should dump state to disk somewhere, or read from a file.
+// forecastIoState is a json struct that we read from/write to disk to keep
+// state.
+type forecastIoState struct {
+	ApiKey string `json:"api_key"`
+}
+
+// getForecastIoKey looks up the Forecast IO API key from disk or the user's
+// environment.
 func getForecastIOKey() (string, error) {
+	state, err := restoreState()
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	if state != nil && state.ApiKey != "" {
+		return state.ApiKey, nil
+	}
+
+	// Try environment.
 	k := os.Getenv(forecastIoEnvKey)
 	if k == "" {
 		return "", fmt.Errorf("could not find Forecast IO API key. Please set with \"export %s=<key>\"",
 			forecastIoEnvKey)
 	}
 	return k, nil
+}
+
+// restoreState restores state from disk.
+func restoreState() (*forecastIoState, error) {
+	f, err := os.Open(filepath.Join(stateFilePath, goforecastState))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var state *forecastIoState
+	if err := json.Unmarshal(b, &state); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+// dumpState writes state to disk.
+func dumpState(state *forecastIoState) error {
+	b, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(stateFilePath, goforecastState), b, 0644); err != nil {
+		return err
+	}
+	return nil
 }
